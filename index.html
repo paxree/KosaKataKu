@@ -1,49 +1,16 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Web App Kosakata Interaktif</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #f4f4f4;
-      color: #222;
-      transition: background 0.3s, color 0.3s;
-    }
-    .dark-mode {
-      background: #121212;
-      color: #f4f4f4;
-    }
-    .container {
-      max-width: 800px;
-      margin: auto;
-    }
-    input, button {
-      padding: 10px;
-      margin: 5px 0;
-      width: 100%;
-      font-size: 1rem;
-    }
-    img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 10px;
-    }
-    .result, .history, .quiz {
-      background: white;
-      padding: 15px;
-      border-radius: 10px;
-      margin-top: 15px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    button.toggle-mode {
-      margin-top: 20px;
-      background: #333;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
+    body { font-family: sans-serif; margin: 2em; transition: background 0.4s, color 0.4s; }
+    .dark-mode { background: #111; color: white; }
+    .container input, .container button { padding: 0.5em; margin: 0.5em; }
+    .result img { max-width: 100%; height: auto; margin-top: 1em; }
+    .toggle-mode { position: fixed; top: 1em; right: 1em; }
+    ul { padding-left: 1em; }
   </style>
 </head>
 <body>
@@ -53,16 +20,12 @@
     <button onclick="searchWord()">Cari Kosakata</button>
     <button onclick="generatePDF()">Cetak PDF</button>
     <button onclick="generateQuiz()">Kuis Interaktif</button>
-
     <div class="result" id="result"></div>
-
     <div class="history" id="history">
       <h3>Riwayat Pencarian</h3>
       <ul id="historyList"></ul>
     </div>
-
     <div class="quiz" id="quizContainer" style="display:none;"></div>
-
     <button class="toggle-mode" onclick="toggleMode()">🌙/☀️ Mode</button>
   </div>
 
@@ -99,24 +62,18 @@
     async function searchWord() {
       const word = document.getElementById("wordInput").value.trim();
       if (!word) return;
-
       resultDiv.innerHTML = `<p>Memuat data untuk <b>${word}</b>...</p>`;
       saveToHistory(word);
 
       try {
-        const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+        const dictRes = await fetch(`https://cors-anywhere.herokuapp.com/https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
         if (!dictRes.ok) throw new Error("Kata tidak ditemukan");
         const dictData = await dictRes.json();
 
-        const transRes = await fetch('https://libretranslate.de/translate', {
+        const transRes = await fetch('https://cors-anywhere.herokuapp.com/https://libretranslate.de/translate', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            q: word,
-            source: 'en',
-            target: 'id',
-            format: 'text'
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ q: word, source: 'en', target: 'id', format: 'text' })
         });
         if (!transRes.ok) throw new Error("Gagal terjemahkan");
         const transData = await transRes.json();
@@ -127,7 +84,7 @@
         const example = entry.meanings?.[0]?.definitions?.[0]?.example || '-';
 
         let audioHtml = '';
-        if(audioUrl){
+        if (audioUrl) {
           audioHtml = `<audio controls src="${audioUrl}"></audio>`;
         }
 
@@ -141,7 +98,7 @@
         `;
 
       } catch (e) {
-        resultDiv.innerHTML = `<p style="color:red">${e.message}</p>`;
+        resultDiv.innerHTML = `<p style="color:red">❌ ${e.message}</p>`;
       }
     }
 
@@ -160,7 +117,6 @@
         alert("Belum ada kata untuk dibuat kuis.");
         return;
       }
-
       const word = history[Math.floor(Math.random() * history.length)];
       quizContainer.innerHTML = `
         <h3>Kuis Kosakata</h3>
@@ -175,19 +131,13 @@
       const userAnswer = document.getElementById("quizAnswer").value.trim().toLowerCase();
 
       try {
-        const transRes = await fetch('https://libretranslate.de/translate', {
+        const transRes = await fetch('https://cors-anywhere.herokuapp.com/https://libretranslate.de/translate', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            q: word,
-            source: 'en',
-            target: 'id',
-            format: 'text'
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ q: word, source: 'en', target: 'id', format: 'text' })
         });
         if (!transRes.ok) throw new Error("Gagal ambil jawaban benar");
         const transData = await transRes.json();
-
         const correct = transData.translatedText.toLowerCase();
 
         if (userAnswer === correct) {
