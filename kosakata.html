@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Web App Kosakata Interaktif</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f4f4f4;
+      color: #222;
+      transition: background 0.3s, color 0.3s;
+    }
+    .dark-mode {
+      background: #121212;
+      color: #f4f4f4;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      width: 100%;
+      font-size: 1rem;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 10px;
+    }
+    .result, .history, .quiz {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 15px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    button.toggle-mode {
+      margin-top: 20px;
+      background: #333;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Web App Kosakata Interaktif</h1>
+    <input id="wordInput" placeholder="Masukkan kata dalam Bahasa Inggris..." />
+    <button onclick="searchWord()">Cari Kosakata</button>
+    <button onclick="generatePDF()">Cetak PDF</button>
+    <button onclick="generateQuiz()">Kuis Interaktif</button>
+
+    <div class="result" id="result"></div>
+
+    <div class="history" id="history">
+      <h3>Riwayat Pencarian</h3>
+      <ul id="historyList"></ul>
+    </div>
+
+    <div class="quiz" id="quizContainer" style="display:none;"></div>
+
+    <button class="toggle-mode" onclick="toggleMode()">🌙/☀️ Mode</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script>
+    const resultDiv = document.getElementById("result");
+    const historyList = document.getElementById("historyList");
+    const quizContainer = document.getElementById("quizContainer");
+
+    function toggleMode() {
+      document.body.classList.toggle("dark-mode");
+    }
+
+    function saveToHistory(word) {
+      let history = JSON.parse(localStorage.getItem("wordHistory")) || [];
+      if (!history.includes(word)) {
+        history.push(word);
+        localStorage.setItem("wordHistory", JSON.stringify(history));
+        renderHistory();
+      }
+    }
+
+    function renderHistory() {
+      let history = JSON.parse(localStorage.getItem("wordHistory")) || [];
+      historyList.innerHTML = "";
+      history.forEach(w => {
+        const li = document.createElement("li");
+        li.textContent = w;
+        historyList.appendChild(li);
+      });
+    }
+
+    async function searchWord() {
+      const word = document.getElementById("wordInput").value.trim();
+      if (!word) return;
+
+      resultDiv.innerHTML = `<p>Memuat data untuk <b>${word}</b>...</p>`;
+      saveToHistory(word);
+
+      try {
+        const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+        if (!dictRes.ok) throw new Error("Kata tidak ditemukan");
+        const dictData = await dictRes.json();
+
+        const transRes = await fetch('https://libretranslate.de/translate', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            q: word,
+            source: 'en',
+            target: 'id',
+            format: 'text'
+          })
+        });
+        if (!transRes.ok) throw new Error("Gagal terjemahkan");
+        const transData = await transRes.json();
+
+        const entry = dictData[0];
+        const phonetic = entry.phonetics.find(p => p.text)?.text || '-';
+        const audioUrl = entry.phonetics.find(p => p.audio)?.audio || '';
+        const example = entry.meanings?.[0]?.definitions?.[0]?.example || '-';
+
+        let audioHtml = '';
+        if(audioUrl){
+          audioHtml = `<audio controls src="${audioUrl}"></audio>`;
+        }
+
+        resultDiv.innerHTML = `
+          <h2>${entry.word}</h2>
+          <p><b>Terjemahan:</b> ${transData.translatedText}</p>
+          <p><b>Fonetik:</b> ${phonetic}</p>
+          <p><b>Contoh:</b> ${example}</p>
+          ${audioHtml}
+          <img src="https://source.unsplash.com/600x400/?${entry.word}" alt="Gambar ${entry.word}" />
+        `;
+
+      } catch (e) {
+        resultDiv.innerHTML = `<p style="color:red">${e.message}</p>`;
+      }
+    }
+
+    function generatePDF() {
+      html2canvas(resultDiv).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jspdf.jsPDF();
+        pdf.addImage(imgData, 'PNG', 10, 10, 190, 0);
+        pdf.save('kosakata.pdf');
+      });
+    }
+
+    function generateQuiz() {
+      const history = JSON.parse(localStorage.getItem("wordHistory")) || [];
+      if (history.length < 1) {
+        alert("Belum ada kata untuk dibuat kuis.");
+        return;
+      }
+
+      const word = history[Math.floor(Math.random() * history.length)];
+      quizContainer.innerHTML = `
+        <h3>Kuis Kosakata</h3>
+        <p>Apa arti dari: <b>${word}</b>?</p>
+        <input id="quizAnswer" placeholder="Tulis terjemahan..." />
+        <button onclick="checkQuizAnswer('${word}')">Cek Jawaban</button>
+      `;
+      quizContainer.style.display = "block";
+    }
+
+    async function checkQuizAnswer(word) {
+      const userAnswer = document.getElementById("quizAnswer").value.trim().toLowerCase();
+
+      try {
+        const transRes = await fetch('https://libretranslate.de/translate', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            q: word,
+            source: 'en',
+            target: 'id',
+            format: 'text'
+          })
+        });
+        if (!transRes.ok) throw new Error("Gagal ambil jawaban benar");
+        const transData = await transRes.json();
+
+        const correct = transData.translatedText.toLowerCase();
+
+        if (userAnswer === correct) {
+          alert("✅ Benar!");
+        } else {
+          alert(`❌ Salah. Jawaban benar: ${correct}`);
+        }
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    renderHistory();
+  </script>
+</body>
+</html>
